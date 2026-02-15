@@ -77,6 +77,26 @@ catkin list | grep minco_opt
 
 ---
 
+### 0.3 CUDA 选项（local_sensing）按 GPU 设置
+
+`uav_simulator/local_sensing` 的深度渲染默认依赖 CUDA。若你的主机 CUDA 工具链/驱动未准备好，建议先关闭 CUDA 走 CPU 路径完成 MINCO 迁移联调：
+
+```bash
+catkin_make --force-cmake --cmake-args \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DENABLE_CUDA=OFF
+```
+
+若要启用 CUDA，请根据显卡设置 `CUDA_ARCH`（例如 61/75/86）：
+
+```bash
+catkin_make --force-cmake --cmake-args \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DENABLE_CUDA=ON -DCUDA_ARCH=86
+```
+
+---
+
 ## 1. 新增 `minco_opt` 包（建议独立）
 
 在 `src/planner/minco_opt` 新建：
