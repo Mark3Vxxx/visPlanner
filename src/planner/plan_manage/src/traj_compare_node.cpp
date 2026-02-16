@@ -83,7 +83,7 @@ private:
     }
   }
 
-  static double estimateLength(const UniformBspline &traj, double duration, double dt) {
+  static double estimateLength(UniformBspline traj, double duration, double dt) {
     double len = 0.0;
     Eigen::Vector3d prev = traj.evaluateDeBoorT(0.0);
     for (double t = dt; t <= duration + 1e-6; t += dt) {
