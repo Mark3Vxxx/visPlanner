@@ -22,13 +22,14 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
   cv_bridge
   bezier_predict
+  minco_opt
 )
 
 # catkin_package(CATKIN_DEPENDS message_runtime)
 catkin_package(
  INCLUDE_DIRS include
  LIBRARIES ego_planner
- CATKIN_DEPENDS plan_env path_searching bspline_opt traj_utils bezier_predict
+ CATKIN_DEPENDS plan_env path_searching bspline_opt traj_utils bezier_predict minco_opt
 #  DEPENDS system_lib
 )
 
