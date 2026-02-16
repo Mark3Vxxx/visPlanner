@@ -367,3 +367,32 @@ void mincoCallback(const traj_utils::MincoTrajConstPtr& msg)
 - `traj_server 收到轨迹但不动`
   - `start_time`、时间基准和段时长累计逻辑有误，优先检查 `cmdCallback` 中 `t_cur`。
 
+
+## 10. MINCO 与 B-spline 轨迹对比（新增对比节点）
+
+新增节点：`ego_planner/traj_compare_node`，输入两路 `traj_utils/Bspline` 轨迹并输出统计对比：
+
+- `mean_dist`：按采样点平均位置误差
+- `max_dist`：最大位置误差
+- `end_dist`：终点误差
+- `len_a / len_b`：两条轨迹长度
+
+### 10.1 启动方式
+
+```bash
+roslaunch ego_planner compare_minco_bspline.launch \
+  topic_a:=/drone_0_planning/bspline_minco \
+  topic_b:=/drone_0_planning/bspline_bspline \
+  sample_dt:=0.05
+```
+
+### 10.2 推荐 A/B 试验流程
+
+1. 运行一次 `manager/use_minco:=true`，把发布重映射到 `bspline_minco`。
+2. 运行一次 `manager/use_minco:=false`，把发布重映射到 `bspline_bspline`。
+3. 启动 `traj_compare_node` 观察日志中的误差与长度指标。
+
+> 当前对比节点只做几何对比，未纳入碰撞代价/可见性代价；如需更深入评估，可再加耗时、最小障碍距离等指标。
+
+---
+

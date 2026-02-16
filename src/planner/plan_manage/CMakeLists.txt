@@ -66,3 +66,6 @@ target_link_libraries(traj_server ${catkin_LIBRARIES})
 #add_dependencies(traj_server ${${PROJECT_NAME}_EXPORTED_TARGETS})
 
 
+
+add_executable(traj_compare_node src/traj_compare_node.cpp)
+target_link_libraries(traj_compare_node ${catkin_LIBRARIES})
