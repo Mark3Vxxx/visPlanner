@@ -69,3 +69,10 @@ target_link_libraries(traj_server ${catkin_LIBRARIES})
 
 add_executable(traj_compare_node src/traj_compare_node.cpp)
 target_link_libraries(traj_compare_node ${catkin_LIBRARIES})
+
+
+catkin_install_python(PROGRAMS
+  scripts/send_goal_sequence.py
+  scripts/collision_safety_monitor.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)

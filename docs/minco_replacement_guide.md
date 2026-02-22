@@ -457,3 +457,58 @@ column -s, -t /tmp/traj_compare.csv | head -n 20
 
 ---
 
+
+
+## 11. 两无人机与障碍物防撞验证（点云地图）
+
+新增节点：`collision_safety_monitor.py`，基于 `/global_map` 点云和两机 odom 进行实时最小距离检查。
+
+- 输入：
+  - 点云：`/global_map`（可改）
+  - 无人机里程计：`/drone_0_visual_slam/odom`、`/drone_1_visual_slam/odom`（可改）
+- 输出：
+  - 话题：`/collision_safety_monitor/collision_risk` (`std_msgs/Bool`)
+  - 控制台：`SAFE` 或 `RISK` 日志，含 `d01/d0_obs/d1_obs` 与阈值
+
+### 11.1 从头运行命令（建议直接复制）
+
+```bash
+cd ~/visPlanner
+catkin_make --force-cmake --cmake-args \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DENABLE_CUDA=OFF
+source devel/setup.bash
+
+# 终端A：启动仿真与规划
+roslaunch ego_planner tracking.launch
+
+# 终端B：启动防撞监测（点云地图验证）
+roslaunch ego_planner monitor_collision_safety.launch \
+  map_topic:=/global_map \
+  odom0_topic:=/drone_0_visual_slam/odom \
+  odom1_topic:=/drone_1_visual_slam/odom \
+  drone_radius:=0.35 \
+  obstacle_clearance:=0.70 \
+  inter_drone_clearance:=1.20 \
+  check_rate:=2.0 \
+  point_stride:=5 \
+  max_check_distance:=8.0
+```
+
+### 11.2 如何判断是否通过
+
+```bash
+# 查看风险布尔值（true 表示风险）
+rostopic echo /collision_safety_monitor/collision_risk
+
+# 检查地图点云是否存在
+rostopic hz /global_map
+
+# 检查两机 odom 是否存在
+rostopic hz /drone_0_visual_slam/odom
+rostopic hz /drone_1_visual_slam/odom
+```
+
+若持续输出 `SAFE` 且 `collision_risk` 长时间为 `false`，可认为在当前阈值下通过验证。
+
+---
