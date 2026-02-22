@@ -368,7 +368,7 @@ void mincoCallback(const traj_utils::MincoTrajConstPtr& msg)
   - `start_time`、时间基准和段时长累计逻辑有误，优先检查 `cmdCallback` 中 `t_cur`。
 
 
-## 10. MINCO 与 B-spline 轨迹对比（新增对比节点）
+## 10. MINCO 与 B-spline 轨迹对比（新增对比节点 + CSV）
 
 新增节点：`ego_planner/traj_compare_node`，输入两路 `traj_utils/Bspline` 轨迹并输出统计对比：
 
@@ -376,21 +376,82 @@ void mincoCallback(const traj_utils::MincoTrajConstPtr& msg)
 - `max_dist`：最大位置误差
 - `end_dist`：终点误差
 - `len_a / len_b`：两条轨迹长度
+- CSV 持久化：每次新轨迹对比结果会写入 CSV
 
-### 10.1 启动方式
+### 10.1 从头运行（详细命令）
+
+#### Step 0: 编译
 
 ```bash
+cd ~/visPlanner
+rm -rf build devel
+catkin_make --force-cmake --cmake-args \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DENABLE_CUDA=OFF
+source devel/setup.bash
+```
+
+#### Step 1: 跑 MINCO 版本并录包
+
+```bash
+# 终端A
+roslaunch ego_planner tracking.launch
+
+# 终端B
+rosbag record -O /tmp/minco_traj.bag /drone_0_planning/bspline
+```
+
+> 同时把 `advanced_param_tracker.xml` 里的 `manager/use_minco` 设为 `true`。
+
+#### Step 2: 跑 B-spline 版本并录包
+
+```bash
+# 终端A
+roslaunch ego_planner tracking.launch
+
+# 终端B
+rosbag record -O /tmp/bspline_traj.bag /drone_0_planning/bspline
+```
+
+> 同时把 `advanced_param_tracker.xml` 里的 `manager/use_minco` 设为 `false`。
+
+#### Step 3: 回放两路轨迹并做对比
+
+```bash
+# 终端A：启动比较节点（含CSV）
 roslaunch ego_planner compare_minco_bspline.launch \
   topic_a:=/drone_0_planning/bspline_minco \
   topic_b:=/drone_0_planning/bspline_bspline \
-  sample_dt:=0.05
+  sample_dt:=0.05 \
+  enable_csv:=true \
+  csv_path:=/tmp/traj_compare.csv
+
+# 终端B：回放MINCO包（重映射到对比节点topic_a）
+rosbag play /tmp/minco_traj.bag --clock \
+  /drone_0_planning/bspline:=/drone_0_planning/bspline_minco
+
+# 终端C：回放B-spline包（重映射到对比节点topic_b）
+rosbag play /tmp/bspline_traj.bag --clock \
+  /drone_0_planning/bspline:=/drone_0_planning/bspline_bspline
 ```
 
-### 10.2 推荐 A/B 试验流程
+#### Step 4: 查看CSV
 
-1. 运行一次 `manager/use_minco:=true`，把发布重映射到 `bspline_minco`。
-2. 运行一次 `manager/use_minco:=false`，把发布重映射到 `bspline_bspline`。
-3. 启动 `traj_compare_node` 观察日志中的误差与长度指标。
+```bash
+head -n 5 /tmp/traj_compare.csv
+column -s, -t /tmp/traj_compare.csv | head -n 20
+```
+
+### 10.2 CSV 字段说明
+
+- `wall_time`: 对比发生时刻（系统时间）
+- `topic_a/topic_b`: 对比的两路话题名
+- `traj_id_a/traj_id_b`: 轨迹ID
+- `start_time_a/start_time_b`: 两轨迹的起始时间
+- `duration`: 实际对齐比较时长（取两者最小）
+- `mean_dist/max_dist/end_dist`: 几何误差指标
+- `len_a/len_b`: 路径长度
+- `sample_dt`: 采样间隔
 
 > 当前对比节点只做几何对比，未纳入碰撞代价/可见性代价；如需更深入评估，可再加耗时、最小障碍距离等指标。
 

@@ -1,6 +1,8 @@
 #include <ros/ros.h>
 
 #include <algorithm>
+#include <fstream>
+#include <iomanip>
 #include <limits>
 #include <string>
 
@@ -26,12 +28,21 @@ public:
     nh_.param("compare/topic_a", topic_a_, std::string("/drone_0_planning/bspline_minco"));
     nh_.param("compare/topic_b", topic_b_, std::string("/drone_0_planning/bspline_bspline"));
     nh_.param("compare/sample_dt", sample_dt_, 0.05);
+    nh_.param("compare/enable_csv", enable_csv_, true);
+    nh_.param("compare/csv_path", csv_path_, std::string("/tmp/traj_compare.csv"));
 
     sub_a_ = nh_.subscribe(topic_a_, 10, &TrajCompareNode::cbA, this, ros::TransportHints().tcpNoDelay());
     sub_b_ = nh_.subscribe(topic_b_, 10, &TrajCompareNode::cbB, this, ros::TransportHints().tcpNoDelay());
     timer_ = nh_.createTimer(ros::Duration(0.2), &TrajCompareNode::onTimer, this);
 
+    if (enable_csv_) {
+      initCsv();
+    }
+
     ROS_INFO_STREAM("[traj_compare] listening topic_a=" << topic_a_ << ", topic_b=" << topic_b_ << ", dt=" << sample_dt_);
+    if (enable_csv_) {
+      ROS_INFO_STREAM("[traj_compare] csv logging enabled: " << csv_path_);
+    }
   }
 
 private:
@@ -41,6 +52,8 @@ private:
 
   std::string topic_a_, topic_b_;
   double sample_dt_{0.05};
+  bool enable_csv_{true};
+  std::string csv_path_;
 
   TrajHolder a_, b_;
   int64_t last_compared_a_{std::numeric_limits<int64_t>::min()};
@@ -83,7 +96,7 @@ private:
     }
   }
 
-  static double estimateLength(const UniformBspline &traj, double duration, double dt) {
+  static double estimateLength(UniformBspline traj, double duration, double dt) {
     double len = 0.0;
     Eigen::Vector3d prev = traj.evaluateDeBoorT(0.0);
     for (double t = dt; t <= duration + 1e-6; t += dt) {
@@ -93,6 +106,45 @@ private:
       prev = cur;
     }
     return len;
+  }
+
+  void initCsv() {
+    std::ifstream in(csv_path_);
+    const bool exists = in.good();
+    in.close();
+
+    if (!exists) {
+      std::ofstream out(csv_path_, std::ios::out);
+      out << "wall_time,topic_a,topic_b,traj_id_a,traj_id_b,start_time_a,start_time_b,duration,mean_dist,max_dist,end_dist,len_a,len_b,sample_dt\n";
+      out.close();
+    }
+  }
+
+  void appendCsv(double duration, double mean_dist, double max_dist, double end_dist, double len_a, double len_b) {
+    if (!enable_csv_) {
+      return;
+    }
+    std::ofstream out(csv_path_, std::ios::app);
+    if (!out.is_open()) {
+      ROS_WARN_THROTTLE(1.0, "[traj_compare] failed to open csv file: %s", csv_path_.c_str());
+      return;
+    }
+    out << std::fixed << std::setprecision(6)
+        << ros::Time::now().toSec() << ","
+        << topic_a_ << ","
+        << topic_b_ << ","
+        << a_.traj_id << ","
+        << b_.traj_id << ","
+        << a_.start_time.toSec() << ","
+        << b_.start_time.toSec() << ","
+        << duration << ","
+        << mean_dist << ","
+        << max_dist << ","
+        << end_dist << ","
+        << len_a << ","
+        << len_b << ","
+        << sample_dt_ << "\n";
+    out.close();
   }
 
   void onTimer(const ros::TimerEvent &) {
@@ -132,14 +184,17 @@ private:
 
     const double len_a = estimateLength(a_.position, duration, sample_dt_);
     const double len_b = estimateLength(b_.position, duration, sample_dt_);
+    const double mean_dist = sum_dist / std::max(1, n);
 
     ROS_INFO_STREAM("[traj_compare] A(traj_id=" << a_.traj_id << ") vs B(traj_id=" << b_.traj_id
                     << ") | duration=" << duration
-                    << " | mean_dist=" << (sum_dist / std::max(1, n))
+                    << " | mean_dist=" << mean_dist
                     << " | max_dist=" << max_dist
                     << " | end_dist=" << end_dist
                     << " | len_a=" << len_a
                     << " | len_b=" << len_b);
+
+    appendCsv(duration, mean_dist, max_dist, end_dist, len_a, len_b);
 
     last_compared_a_ = a_.traj_id;
     last_compared_b_ = b_.traj_id;
