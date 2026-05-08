@@ -359,6 +359,7 @@ inline double evalMincoAcc(const Eigen::MatrixXd &coeff, int seg, double t)
 
           Eigen::MatrixXd ctrl_pts;
           UniformBspline::parameterizeToBspline(ts, point_set, start_end_derivatives, ctrl_pts);
+          bspline_optimizer_->setPosControlPointsAndTs(ctrl_pts, ts);
           UniformBspline pos(ctrl_pts, 3, ts);
           pos.setPhysicalLimits(pp_.max_vel_, pp_.max_acc_, pp_.feasibility_tolerance_);
           updateTrajInfo(pos, ros::Time::now());
